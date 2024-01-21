@@ -87,6 +87,40 @@ typedef struct{     // used in call-back functions
     uint8 ST; // Sepsration Time - only flow control frame
 } CanPCI_Type;
 
+typedef struct{
+    CanTp_RxNSduState activation;
+    /** Points to nsdu in CanTp_Config.channels */
+    CanTp_RxNSduType *nsdu;
+    CanTp_RxConnectionState state;
+
+    struct{
+        uint32 ar;
+        uint32 br;
+        uint32 cr;
+    } timer;
+
+    PduInfoType pduInfo;
+    PduLengthType buffSize;
+    PduLengthType aquiredBuffSize;
+    uint8 sn;
+    uint8 bs;
+    CanTp_FsType fs;
+    CanTp_ConnectionBuffer fcBuf;
+} CanTp_RxConnection;
+
+static CanTp_RxConnection *getRxConnection(PduIdType PduId){
+    CanTp_RxConnection *rxConnection = NULL;
+    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections) && !rxConnection;
+         connItr++) {
+        if (CanTp_State.rxConnections[connItr].nsdu != NULL) {
+            if (CanTp_State.rxConnections[connItr].nsdu->id == PduId) {
+                rxConnection = &CanTp_State.rxConnections[connItr];
+            }
+        }
+    }
+    return rxConnection;
+}
+
 /*====================================================================================================================*\
     Zmienne globalne
 \*====================================================================================================================*/
@@ -139,7 +173,18 @@ void CanTp_Init (void){
   This function returns the version information of the CanTp module.
 
 */
-void CanTp_GetVersionInfo(Std_VersionInfoType* versioninfo);
+void CanTp_GetVersionInfo(Std_VersionInfoType* versioninfo){
+    if (pVersionInfo != NULL_PTR){
+        pVersionInfo->vendorID = 0x00u;
+        pVersionInfo->moduleID = (uint16)CANTP_MODULE_ID;
+        pVersionInfo->sw_major_version = CANTP_SW_MAJOR_VERSION;
+        pVersionInfo->sw_minor_version = CANTP_SW_MINOR_VERSION;
+        pVersionInfo->sw_patch_version = CANTP_SW_PATCH_VERSION;
+    }
+    else{
+        CanTp_ReportError(0x00u, CANTP_GET_VERSION_INFO_API_ID, CANTP_E_PARAM_POINTER);
+    }
+}
 
 
 /**
@@ -148,12 +193,11 @@ void CanTp_GetVersionInfo(Std_VersionInfoType* versioninfo);
   This function is called to shutdown the CanTp module.
 
 */
-void CanTp_Shutdown (void){
+void CanTp_Shutdown(void){
     /* Reset all state variables and change state to can tp on */
     CanTp_Reset_Rx_State_Variables();
     CanTp_ResetTxStateVariables();
     CanTp_State = CAN_TP_OFF;
-
 }
 
 
@@ -163,7 +207,7 @@ void CanTp_Shutdown (void){
   Requests transmission of a PDU.
 
 */
-Std_ReturnType CanTp_Transmit (PduIdType TxPduId, const PduInfoType* PduInfoPtr){
+Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr){
     BufReq_ReturnType BufReq_State;
     PduLengthType Pdu_Len;
     Std_ReturnType ret = E_OK;
@@ -176,7 +220,7 @@ Std_ReturnType CanTp_Transmit (PduIdType TxPduId, const PduInfoType* PduInfoPtr)
     if(CanTp_State == CAN_TP_ON){
         if(CanTp_Tx_StateVariables.Cantp_TxState == CANTP_TX_WAIT){
             if(PduInfoPtr->SduLength < 8){
-                //Send signle frame
+                //Send single frame
                 Temp_Pdu.SduLength = PduInfoPtr->SduLength;
                 BufReq_State = PduR_CanTpCopyTxData(TxPduId, &Temp_Pdu, NULL, &Pdu_Len);
                 if(BufReq_State == BUFREQ_OK){
@@ -187,7 +231,7 @@ Std_ReturnType CanTp_Transmit (PduIdType TxPduId, const PduInfoType* PduInfoPtr)
                     PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
                     ret = E_NOT_OK;
                 }
-                else {
+                else{
                     //Start N_Cs timer
                     CanTp_TimerStart(&N_Cs_timer);
                     ret = E_OK;
