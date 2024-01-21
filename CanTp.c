@@ -59,6 +59,16 @@ typedef enum{     // used in call-back functions
     UNKNOWN = 4
 } frame_type_t;
 
+typedef enum{
+    CANTP_RX_STATE_FREE,
+    CANTP_RX_STATE_WAIT_CF,
+    CANTP_RX_STATE_FC_TX_REQ,
+    CANTP_RX_STATE_PROCESSED,
+    CANTP_RX_STATE_ABORT,
+    CANTP_RX_STATE_INVALID
+} CanTp_RxConnectionState;
+
+
 // STRUCT:
 typedef struct{
     CanTp_TxState_Type Cantp_TxState;   // stan transmitera
@@ -87,39 +97,39 @@ typedef struct{     // used in call-back functions
     uint8 ST; // Sepsration Time - only flow control frame
 } CanPCI_Type;
 
-typedef struct{
-    CanTp_RxNSduState activation;
-    /** Points to nsdu in CanTp_Config.channels */
-    CanTp_RxNSduType *nsdu;
-    CanTp_RxConnectionState state;
+// typedef struct{
+//     CanTp_RxNSduState activation;
+//     /** Points to nsdu in CanTp_Config.channels */
+//     CanTp_RxNSduType *nsdu;
+//     CanTp_RxConnectionState state;
 
-    struct{
-        uint32 ar;
-        uint32 br;
-        uint32 cr;
-    } timer;
+//     struct{
+//         uint32 ar;
+//         uint32 br;
+//         uint32 cr;
+//     } timer;
 
-    PduInfoType pduInfo;
-    PduLengthType buffSize;
-    PduLengthType aquiredBuffSize;
-    uint8 sn;
-    uint8 bs;
-    CanTp_FsType fs;
-    CanTp_ConnectionBuffer fcBuf;
-} CanTp_RxConnection;
+//     PduInfoType pduInfo;
+//     PduLengthType buffSize;
+//     PduLengthType aquiredBuffSize;
+//     uint8 sn;
+//     uint8 bs;
+//     CanTp_FsType fs;
+//     CanTp_ConnectionBuffer fcBuf;
+// } CanTp_RxConnection;
 
-static CanTp_RxConnection *getRxConnection(PduIdType PduId){
-    CanTp_RxConnection *rxConnection = NULL;
-    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections) && !rxConnection;
-         connItr++) {
-        if (CanTp_State.rxConnections[connItr].nsdu != NULL) {
-            if (CanTp_State.rxConnections[connItr].nsdu->id == PduId) {
-                rxConnection = &CanTp_State.rxConnections[connItr];
-            }
-        }
-    }
-    return rxConnection;
-}
+// static CanTp_RxConnection *getRxConnection(PduIdType PduId){
+//     CanTp_RxConnection *rxConnection = NULL;
+//     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections) && !rxConnection;
+//          connItr++) {
+//         if (CanTp_State.rxConnections[connItr].nsdu != NULL) {
+//             if (CanTp_State.rxConnections[connItr].nsdu->id == PduId) {
+//                 rxConnection = &CanTp_State.rxConnections[connItr];
+//             }
+//         }
+//     }
+//     return rxConnection;
+// }
 
 /*====================================================================================================================*\
     Zmienne globalne
@@ -135,6 +145,8 @@ CanTp_Timer_type N_Cr_timer = {TIMER_NOT_ACTIVE, 0, N_CR_TIMEOUT_VAL};
 CanTp_Timer_type N_As_timer = {TIMER_NOT_ACTIVE, 0, N_AS_TIMEOUT_VAL};
 CanTp_Timer_type N_Bs_timer = {TIMER_NOT_ACTIVE, 0, N_BS_TIMEOUT_VAL};
 CanTp_Timer_type N_Cs_timer = {TIMER_NOT_ACTIVE, 0, N_CS_TIMEOUT_VAL};
+
+uint32 FC_Wait_frame_ctr;
 
 /*====================================================================================================================*\
     Zmienne lokalne (statyczne)
@@ -305,69 +317,69 @@ Std_ReturnType CanTp_CancelReceive ( PduIdType RxPduId ){
 }
 
 
-/**
-  @brief CanTp_ChangeParameter
+// /**
+//   @brief CanTp_ChangeParameter
 
-  Request to change a specific transport protocol parameter (e.g. block size).
+//   Request to change a specific transport protocol parameter (e.g. block size).
 
-*/
-Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, uint16 value){
-    Std_ReturnType result = E_NOT_OK;
-    CanTp_RxConnection *conn = getRxConnection(id);
-    if ((conn != NULL) && (conn->activation == CANTP_RX_WAIT) && (conn->state == CANTP_RX_STATE_FREE) && (value <= 0xFF)){
-        switch(parameter){
-            case TP_STMIN:
-                conn->nsdu->STmin = value;
-                result = E_OK;
-                break;
-            case TP_BS:
-                conn->nsdu->bs = value;
-                result = E_OK;
-                break;
-            case TP_BC:
-            default:
-                break;
-        }
-    }
-    return result;
-}
+// */
+// Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, uint16 value){
+//     Std_ReturnType result = E_NOT_OK;
+//     CanTp_RxConnection *conn = getRxConnection(id);
+//     if ((conn != NULL) && (conn->activation == CANTP_RX_WAIT) && (conn->state == CANTP_RX_STATE_FREE) && (value <= 0xFF)){
+//         switch(parameter){
+//             case TP_STMIN:
+//                 conn->nsdu->STmin = value;
+//                 result = E_OK;
+//                 break;
+//             case TP_BS:
+//                 conn->nsdu->bs = value;
+//                 result = E_OK;
+//                 break;
+//             case TP_BC:
+//             default:
+//                 break;
+//         }
+//     }
+//     return result;
+// }
 
 
-/**
-  @brief CanTp_ReadParameter
+// /**
+//   @brief CanTp_ReadParameter
 
-  This service is used to read the current value of reception parameters BS and STmin for a specified N-SDU.
+//   This service is used to read the current value of reception parameters BS and STmin for a specified N-SDU.
 
-*/
-Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16 *value){
-    Std_ReturnType result = E_NOT_OK;
-    CanTp_RxConnection *conn = getRxConnection(id);
+// */
+// Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16 *value){
+//     Std_ReturnType result = E_NOT_OK;
+//     CanTp_RxConnection *conn = getRxConnection(id);
 
-    if (conn != NULL){
-        uint16 readVal;
-`
-        switch (parameter){
-            case TP_STMIN:
-                readVal = conn->nsdu->STmin;
-                result = E_OK;
-                break;
-            case TP_BS:
-                readVal = conn->nsdu->bs;
-                result = E_OK;
-                break;
-            case TP_BC:
-            default:
-                break;
-        }
-        if ((result == E_OK) && (readVal <= 0xff)){
-            *value = readVal;
-        } 
-        else{
-            result = E_NOT_OK;
-        }
-    }
-    return result;
-}
+//     if (conn != NULL){
+//         uint16 readVal;
+// `
+//         switch (parameter){
+//             case TP_STMIN:
+//                 readVal = conn->nsdu->STmin;
+//                 result = E_OK;
+//                 break;
+//             case TP_BS:
+//                 readVal = conn->nsdu->bs;
+//                 result = E_OK;
+//                 break;
+//             case TP_BC:
+//             default:
+//                 break;
+//         }
+//         if ((result == E_OK) && (readVal <= 0xff)){
+//             *value = readVal;
+//         } 
+//         else{
+//             result = E_NOT_OK;
+//         }
+//     }
+//     return result;
+// }
 
 
 
@@ -464,7 +476,7 @@ void CanTp_MainFunction (void){
             }
             //Obsługa timeouta
             if(CanTp_TimerTimeout(&N_Br_timer)){
-                FC_Wait_frame_ctr ++;  //Inkrementacja licznika ramek WAIT 
+                FC_Wait_frame_ctr++;  //Inkrementacja licznika ramek WAIT 
                 N_Br_timer.counter = 0;
                 if(FC_Wait_frame_ctr >= FC_WAIT_FRAME_CTR_MAX){
                     // [SWS_CanTp_00223]
