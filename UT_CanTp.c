@@ -141,8 +141,8 @@ void TestOf_CanTp_Transmit(void){
     PduInfo.SduDataPtr = SduDataPtr;
     Std_ReturnType ret; 
 
-
     
+
 }
 
 

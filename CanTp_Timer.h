@@ -1,4 +1,3 @@
-
 #ifndef CAN_TP_TIMER_H
 #define CAN_TP_TIMER_H
 
@@ -39,8 +38,8 @@ typedef enum{
 
 typedef struct{
     timer_state_t state;
-    uint32        counter; 
-    const uint32   timeout; 
+    uint32 counter; 
+    const uint32 timeout; 
 } CanTp_Timer_type;
 
 /*====================================================================================================================*\
