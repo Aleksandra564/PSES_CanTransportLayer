@@ -4,146 +4,165 @@
   @brief Testy jednostkowe do CanTp.c
 \*====================================================================================================================*/
 
+#include "fff.h"
+
+DEFINE_FFF_GLOBALS; 
+
 #include "acutest.h"
 #include "Std_Types.h"
-#include "fff.h"
 
 #include "CanTp.c"  
 
 #include <stdio.h>
 #include <string.h>
 
-DEFINE_FFF_GLOBALS; 
+// HELPER FUNCTIONS:
+#define PDU_INVALID (PduIdType)0xFFFFFFFF
+
+static PduIdType findNextValidTxPduId(void){
+    static uint32 connItr = 0;
+
+    PduIdType pduId = PDU_INVALID;
+
+    for (connItr = 0; pduId == PDU_INVALID; connItr++){
+        if (CanTp_State.txConnections[connItr].nsdu){
+            pduId = CanTp_State.txConnections[connItr].nsdu->id;
+            break;
+        }
+        connItr = connItr % ARR_SIZE(CanTp_State.txConnections);
+    }
+    TEST_ASSERT(pduId != PDU_INVALID);
+    TEST_MSG("Could not find any PduId -> Modify CanTp config so it have at least one tx nsdu\n");
+
+    return pduId;
+}
 
 
-// FAKE FUNCTIONS:
-FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyRxData, PduIdType, const PduInfoType*, PduLengthType*);
-FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyTxData, PduIdType, const PduInfoType*, const RetryInfoType*, PduLengthType*);
-FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpStartOfReception, PduIdType, const PduInfoType*, PduLengthType, PduLengthType*);
+
+// FAKE FUNCTIONS
+// FAKE_STATIC_VALUE_FUNC2(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType *);
+// FAKE_STATIC_VALUE_FUNC4(BufReq_ReturnType, PduR_CanTpCopyTxData, PduIdType, const PduInfoType *, const RetryInfoType *, PduLengthType *);
+// FAKE_VOID_FUNC2(PduR_CanTpTxConfirmation, PduIdType, Std_ReturnType);
+
+/*====================================================================================================================*\
+    Fake functions
+\*====================================================================================================================*/
+/**
+  @brief Mocks do Det.h
+*/
+FAKE_VALUE_FUNC(Std_ReturnType, Det_ReportRuntimeError, uint16, uint8, uint8, uint8);
+/**
+  @brief Mocks do CanIf.h
+*/
+FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType *);
+/**
+  @brief Mocks do PduR_CanTp.h
+*/
+FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyRxData, PduIdType, const PduInfoType *, PduLengthType *);
+FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyTxData, PduIdType, const PduInfoType *, const RetryInfoType *, PduLengthType *);
 FAKE_VOID_FUNC(PduR_CanTpRxIndication, PduIdType, Std_ReturnType);
+FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpStartOfReception, PduIdType, const PduInfoType *, PduLengthType, PduLengthType *);
 FAKE_VOID_FUNC(PduR_CanTpTxConfirmation, PduIdType, Std_ReturnType);
-
-FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType*);
-
+//
 
 // MOCKS
-PduLengthType* PduR_CanTpCopyRxData_buffSize_array;
+/**
+  @brief Mocks do Det.h
+*/
+// Std_ReturnType Det_ReportRuntimeError_MOCK(uint16 moduleId, uint8 instanceId, uint8 apiId, uint8 errorId){
+//     (void)moduleId;
+//     (void)instanceId;
+//     (void)apiId;
+//     (void)errorId;
+//     return E_OK;
+// }
 
-BufReq_ReturnType PduR_CanTpCopyRxData_mock(PduIdType id, const PduInfoType* info, PduLengthType* bufferSizePtr){
-    static int i = 0;
-    i = PduR_CanTpCopyRxData_fake.call_count - 1;
-    *bufferSizePtr = PduR_CanTpCopyRxData_buffSize_array[i];
-    return PduR_CanTpCopyRxData_fake.return_val_seq[i];
-}
+/**
+  @brief Mocks do CanIf.h
+*/
+// Std_ReturnType CanIf_Transmit_MOCK(PduIdType txPduId, const PduInfoType *pPduInfo){
+//     (void)txPduId;
+//     (void)pPduInfo;
+//     return E_OK;
+// }
 
-uint8 PduR_CanTpCopyTxData_sdu_data[20][7];
-PduLengthType *PduR_CanTpCopyTxData_availableDataPtr; 
+/**
+  @brief Mocks do PduR_CanTp.h
+*/
+// BufReq_ReturnType PduR_CanTpCopyRxData_MOCK(PduIdType rxPduId, const PduInfoType *pPduInfo, PduLengthType *pBuffer){
+//     (void)rxPduId;
+//     (void)pPduInfo;
+//     (void)pBuffer;
+//     return BUFREQ_OK;
+// }
 
-BufReq_ReturnType PduR_CanTpCopyTxData_mock(PduIdType id, const PduInfoType* info, const RetryInfoType* retry, PduLengthType* availableDataPtr){
-    static int i = 0;
-    int loop_ctr;
-    i = PduR_CanTpCopyTxData_fake.call_count - 1;
-    for(loop_ctr = 0; loop_ctr < info->SduLength; loop_ctr++){
-      info->SduDataPtr[loop_ctr] = PduR_CanTpCopyTxData_sdu_data[i][loop_ctr];
-    }
-    *availableDataPtr = PduR_CanTpCopyTxData_availableDataPtr[i];
-    return PduR_CanTpCopyTxData_fake.return_val_seq[i];
-}
+// BufReq_ReturnType PduR_CanTpCopyTxData_MOCK(PduIdType txPduId, const PduInfoType *pPduInfo, const RetryInfoType *pRetryInfo, PduLengthType *pAvailableData){
+//     (void)txPduId;
+//     (void)pPduInfo;
+//     (void)pRetryInfo;
+//     (void)pAvailableData;
+//     return BUFREQ_OK;
+// }
 
-PduLengthType *PduR_CanTpStartOfReception_buffSize_array;
+// void PduR_CanTpRxIndication_MOCK(PduIdType rxPduId, Std_ReturnType result){
+//     (void)rxPduId;
+//     (void)result;
+// }
 
-BufReq_ReturnType PduR_CanTpStartOfReception_mock(PduIdType id, const PduInfoType* info, PduLengthType TpSduLength, PduLengthType* bufferSizePtr){
-    static int i = 0;
-    i = PduR_CanTpStartOfReception_fake.call_count - 1;
-    *bufferSizePtr = PduR_CanTpStartOfReception_buffSize_array[i];
-   return PduR_CanTpStartOfReception_fake.return_val_seq[i];
-}
+// BufReq_ReturnType PduR_CanTpStartOfReception_MOCK(PduIdType pduId, const PduInfoType *pPduInfo, PduLengthType tpSduLength, PduLengthType *pBufferSize){
+//     (void)pduId;
+//     (void)pPduInfo;
+//     (void)tpSduLength;
+//     (void)pBufferSize;
+//     return BUFREQ_OK;
+// }
+
+// void PduR_CanTpTxConfirmation_MOCK(PduIdType txPduId, Std_ReturnType result){
+//     (void)txPduId;
+//     (void)result;
+// }
 
 
 
-// UNIT TESTS:
+/*====================================================================================================================*\
+    Unit Tests
+\*====================================================================================================================*/
 void Test_Of_CanTp_Init(void){
-    CanTp_Tx_StateVariables.Cantp_TxState = CANTP_TX_WAIT;
-    CanTp_Tx_StateVariables.blocks_to_fc = 1;
-    CanTp_Tx_StateVariables.CanTp_Current_TxId = 0x1;
-    CanTp_Tx_StateVariables.message_legth = 100;
-    CanTp_Tx_StateVariables.sent_bytes = 95;
-    CanTp_Tx_StateVariables.next_SN = 0;
-    CanTp_Tx_StateVariables.CanTp_Current_TxId = 2;
-
-    CanTp_StateVariables.CanTp_RxState = CANTP_RX_PROCESSING;
-    CanTp_StateVariables.blocks_to_next_cts = 1;
-    CanTp_StateVariables.CanTp_Current_RxId = 1;
-    CanTp_StateVariables.expected_CF_SN = 1;
-    CanTp_StateVariables.sended_bytes = 1;
-
-    CanTp_State = CAN_TP_ON;
-    // should reset all variables and set state to ON
-    CanTp_Shutdown();
-    
-    TEST_CHECK(CanTp_Tx_StateVariables.Cantp_TxState == CANTP_TX_WAIT);
-    TEST_CHECK(CanTp_Tx_StateVariables.CanTp_Current_TxId == 0); 
-    TEST_CHECK(CanTp_Tx_StateVariables.blocks_to_fc == 0);
-    TEST_CHECK(CanTp_Tx_StateVariables.message_legth == 0);
-    TEST_CHECK(CanTp_Tx_StateVariables.sent_bytes == 0);
-
-    TEST_CHECK(CanTp_StateVariables.CanTp_RxState == CANTP_RX_WAIT);
-    TEST_CHECK(CanTp_StateVariables.blocks_to_next_cts == 0);
-    TEST_CHECK(CanTp_StateVariables.CanTp_Current_RxId == 0);
-    TEST_CHECK(CanTp_StateVariables.expected_CF_SN == 0);
-    TEST_CHECK(CanTp_StateVariables.sended_bytes == 0);
-
-    TEST_CHECK(CanTp_State == CAN_TP_ON);
+    CanTp_Init(NULL);
+    TEST_CHECK(CanTp_State.activation == CANTP_ON);
 }
 
 
-void Test_Of_CanTp_Shutdown(void){
-    CanTp_Tx_StateVariables.Cantp_TxState = CANTP_TX_WAIT;
-    CanTp_Tx_StateVariables.blocks_to_fc = 1;
-    CanTp_Tx_StateVariables.CanTp_Current_TxId = 0x1;
-    CanTp_Tx_StateVariables.message_legth = 100;
-    CanTp_Tx_StateVariables.sent_bytes = 95;
-    CanTp_Tx_StateVariables.next_SN = 0;
-    CanTp_Tx_StateVariables.CanTp_Current_TxId = 2;
+// void Test_Of_CanTp_Shutdown(void){
+//     uint8 data[] = {1,2,3,4,5,6,7,8,9,10};
+//     PduInfoType pduInfo = {
+//         .SduDataPtr = data,
+//         .SduLength = ARR_SIZE(data)
+//     };
 
-    CanTp_StateVariables.CanTp_RxState = CANTP_RX_PROCESSING;
-    CanTp_StateVariables.blocks_to_next_cts = 1;
-    CanTp_StateVariables.CanTp_Current_RxId = 1;
-    CanTp_StateVariables.expected_CF_SN = 1;
-    CanTp_StateVariables.sended_bytes = 1;
+//     PduIdType pduId = findNextValidTxPduId();
+//     CanTp_State.activation = CANTP_ON;
 
-    CanTp_State = CAN_TP_ON;
-    // should reset all variables and set state to OFF
-    CanTp_Shutdown();
-    
-    TEST_CHECK(CanTp_Tx_StateVariables.Cantp_TxState == CANTP_TX_WAIT);
-    TEST_CHECK(CanTp_Tx_StateVariables.CanTp_Current_TxId == 0); 
-    TEST_CHECK(CanTp_Tx_StateVariables.blocks_to_fc == 0);
-    TEST_CHECK(CanTp_Tx_StateVariables.message_legth == 0);
-    TEST_CHECK(CanTp_Tx_StateVariables.sent_bytes == 0);
+//     CanTp_Transmit(pduId, &pduInfo);
+//     CanTp_MainFunction();
+//     CanTp_Shutdown();
+//     CanTp_MainFunction();
 
-    TEST_CHECK(CanTp_StateVariables.CanTp_RxState == CANTP_RX_WAIT);
-    TEST_CHECK(CanTp_StateVariables.blocks_to_next_cts == 0);
-    TEST_CHECK(CanTp_StateVariables.CanTp_Current_RxId == 0);
-    TEST_CHECK(CanTp_StateVariables.expected_CF_SN == 0);
-    TEST_CHECK(CanTp_StateVariables.sended_bytes == 0);
+//     TEST_CHECK(CanTp_State.activation == CANTP_OFF);
 
-    TEST_CHECK(CanTp_State == CAN_TP_OFF);
-}
+//     for (int i=0; i < ARR_SIZE(CanTp_State.rxConnections); i++){
+//         TEST_CHECK(CanTp_State.rxConnections[i].activation == CANTP_RX_WAIT);
+//     }
+
+//     for (int i=0; i < ARR_SIZE(CanTp_State.txConnections); i++){
+//         TEST_CHECK(CanTp_State.txConnections[i].activation == CANTP_TX_WAIT);
+//     }
+// }
 
 
-void TestOf_CanTp_Transmit(void){
-    PduIdType PduId = 0x01;
-    PduInfoType PduInfo;
-    uint8 SduDataPtr[8];
-    uint8 *MetaDataPtr;
-    PduInfo.MetaDataPtr = MetaDataPtr;
-    PduInfo.SduDataPtr = SduDataPtr;
-    Std_ReturnType ret; 
+// void TestOf_CanTp_Transmit(void){
 
-    
-
-}
+// }
 
 
 // void TestOf_CanTp_CancelTransmit(void){
@@ -175,14 +194,13 @@ void TestOf_CanTp_Transmit(void){
 
 // }
 
-,,,,,,
 
 /*
   Lista testów - wpisz tutaj wszystkie funkcje które mają być wykonane jako testy.
 */
 TEST_LIST = {
     {"Test_Of_CanTp_Init",Test_Of_CanTp_Init},    // Format to {"nazwa testu", nazwa_funkcji}
-    {"Test_Of_CanTp_Shutdown", Test_Of_CanTp_Shutdown},
+    // {"Test_Of_CanTp_Shutdown", Test_Of_CanTp_Shutdown},
     // {"TestOf_CanTp_Transmit", TestOf_CanTp_Transmit},
     // {"TestOf_CanTp_CancelTransmit", TestOf_CanTp_CancelTransmit},
     // {"TestOf_CanTp_CancelReceive", TestOf_CanTp_CancelReceive},

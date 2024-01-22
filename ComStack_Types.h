@@ -35,7 +35,6 @@ typedef struct{
 typedef struct{
     TpDataStateType TpDataStateType;    // store state of Tp buffer
     PduLengthType   TxTpDataCnt;        // number of bytes to be retransmitted 
-
 }RetryInfoType;
 
 #endif /* COMSTACK_TYPES_H */
