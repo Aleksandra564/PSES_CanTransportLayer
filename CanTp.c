@@ -221,8 +221,7 @@ static CanTp_TxConnection *getTxConnection(PduIdType PduId){
 
 static CanTp_RxConnection *getRxConnection(PduIdType PduId){
     CanTp_RxConnection *rxConnection = NULL;
-    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections) && !rxConnection;
-         connItr++){
+    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections) && !rxConnection; connItr++){
         if (CanTp_State.rxConnections[connItr].nsdu != NULL){
             if (CanTp_State.rxConnections[connItr].nsdu->id == PduId){
                 rxConnection = &CanTp_State.rxConnections[connItr];
