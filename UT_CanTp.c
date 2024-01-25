@@ -55,15 +55,15 @@ static PduIdType findNextValidTxPduId(void){
     Fake functions and mocks
 \*====================================================================================================================*/
 /**
-  @brief Mocks do Det.h
+  @brief Fake functions do Det.h
 */
 FAKE_VALUE_FUNC(Std_ReturnType, Det_ReportRuntimeError, uint16, uint8, uint8, uint8);
 /**
-  @brief Mocks do CanIf.h
+  @brief Fake functions do CanIf.h
 */
 FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType *);
 /**
-  @brief Mocks do PduR_CanTp.h
+  @brief Fake functions do PduR_CanTp.h
 */
 FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyRxData, PduIdType, const PduInfoType *, PduLengthType *);
 FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyTxData, PduIdType, const PduInfoType *, const RetryInfoType *, PduLengthType *);
@@ -73,61 +73,8 @@ FAKE_VOID_FUNC(PduR_CanTpTxConfirmation, PduIdType, Std_ReturnType);
 
 // MOCKS
 /**
-  @brief Mocks do Det.h
-*/
-// Std_ReturnType Det_ReportRuntimeError_MOCK(uint16 moduleId, uint8 instanceId, uint8 apiId, uint8 errorId){
-//     (void)moduleId;
-//     (void)instanceId;
-//     (void)apiId;
-//     (void)errorId;
-//     return E_OK;
-// }
-
-/**
-  @brief Mocks do CanIf.h
-*/
-// Std_ReturnType CanIf_Transmit_MOCK(PduIdType txPduId, const PduInfoType *pPduInfo){
-//     (void)txPduId;
-//     (void)pPduInfo;
-//     return E_OK;
-// }
-
-/**
   @brief Mocks do PduR_CanTp.h
 */
-// BufReq_ReturnType PduR_CanTpCopyRxData_MOCK(PduIdType rxPduId, const PduInfoType *pPduInfo, PduLengthType *pBuffer){
-//     (void)rxPduId;
-//     (void)pPduInfo;
-//     (void)pBuffer;
-//     return BUFREQ_OK;
-// }
-
-// BufReq_ReturnType PduR_CanTpCopyTxData_MOCK(PduIdType txPduId, const PduInfoType *pPduInfo, const RetryInfoType *pRetryInfo, PduLengthType *pAvailableData){
-//     (void)txPduId;
-//     (void)pPduInfo;
-//     (void)pRetryInfo;
-//     (void)pAvailableData;
-//     return BUFREQ_OK;
-// }
-
-// void PduR_CanTpRxIndication_MOCK(PduIdType rxPduId, Std_ReturnType result){
-//     (void)rxPduId;
-//     (void)result;
-// }
-
-// BufReq_ReturnType PduR_CanTpStartOfReception_MOCK(PduIdType pduId, const PduInfoType *pPduInfo, PduLengthType tpSduLength, PduLengthType *pBufferSize){
-//     (void)pduId;
-//     (void)pPduInfo;
-//     (void)tpSduLength;
-//     (void)pBufferSize;
-//     return BUFREQ_OK;
-// }
-
-// void PduR_CanTpTxConfirmation_MOCK(PduIdType txPduId, Std_ReturnType result){
-//     (void)txPduId;
-//     (void)result;
-// }
-
 static BufReq_ReturnType PduR_CanTpStartOfReception_MOCK(PduIdType pduId, const PduInfoType *pPduInfo, PduLengthType tpSduLength, PduLengthType *pBufferSize){
     *pBufferSize = tpSduLength;
     return BUFREQ_OK;
@@ -150,10 +97,7 @@ void Test_Of_CanTp_Init(void){
 
 void Test_Of_CanTp_Shutdown(void){
     uint8 data[] = {1,2,3,4,5,6,7,8,9,10};
-    PduInfoType pduInfo = {
-        .SduDataPtr = data,
-        .SduLength = ARR_SIZE(data)
-    };
+    PduInfoType pduInfo = {.SduDataPtr = data, .SduLength = ARR_SIZE(data)};
 
     PduIdType pduId = findNextValidTxPduId();
     CanTp_State.activation = CANTP_ON;
@@ -191,18 +135,17 @@ void TestOf_CanTp_Transmit(void){
         CanTp_MainFunction();
     }
 
-    /** Verification of CanIf_Transmit usage */
+    // Verification of CanIf_Transmit usage
     TEST_CHECK(CanIf_Transmit_fake.call_count == 1);
     TEST_CHECK(CanIf_Transmit_fake.arg0_val == pduId);
 
-    /** Not: can do that, because the buffer passed by pointer is statically declared */
     TEST_CHECK(((PduInfoType *)CanIf_Transmit_fake.arg1_val)->SduLength == sduLengthPassedToCanIf);
 
-    /** Verification of PduR_CanTpCopyTxData usage */
-    TEST_CHECK(PduR_CanTpCopyTxData_fake.call_count == 2);
+    // Verification of PduR_CanTpCopyTxData usage
+    TEST_CHECK(PduR_CanTpCopyTxData_fake.call_count == 1);
     TEST_CHECK(PduR_CanTpCopyTxData_fake.arg0_val == pduId);
 
-    /** Verification of PduR_CanTpTxConfirmation usage */
+    // Verification of PduR_CanTpTxConfirmation usage
     TEST_CHECK(PduR_CanTpTxConfirmation_fake.call_count == 1);
     TEST_CHECK(PduR_CanTpTxConfirmation_fake.arg0_val == pduId);
     TEST_CHECK(PduR_CanTpTxConfirmation_fake.arg1_val == E_OK);
@@ -268,17 +211,17 @@ void TestOf_CanTp_ChangeParameter(void){
     config.channels[0].rxNSdu[1] = test_nsdu;
     uint16 value = 123;
     
-    // TEST 1 - valid
-    CanTp_State.rxConnections[1].activation = CANTP_RX_WAIT;
-
-    TEST_CHECK(CanTp_ChangeParameter(PDU_ID_1, TP_BS, value) == E_OK);
-    TEST_CHECK(CanTp_State.rxConnections[1].nsdu->bs == value);
-    
-    // TEST 2 - invalid state
+     // TEST 1 - invalid state
     CanTp_State.rxConnections[1].activation = CANTP_RX_PROCESSING;
 
     TEST_CHECK(CanTp_ChangeParameter(PDU_ID_1, TP_BS, value) == E_NOT_OK);
     TEST_CHECK(CanTp_State.rxConnections[1].nsdu->bs == 100);
+
+    // TEST 2 - valid
+    CanTp_State.rxConnections[1].activation = CANTP_RX_WAIT;
+
+    TEST_CHECK(CanTp_ChangeParameter(PDU_ID_1, TP_BS, value) == E_OK);
+    TEST_CHECK(CanTp_State.rxConnections[1].nsdu->bs == value);
     
     // TEST 3 - invalid value
     test_nsdu = (CanTp_RxNSduType) {.id = PDU_ID_1, .paddingActivation = CANTP_OFF, .addressingFormat = CANTP_STANDARD, .STmin = 100};
@@ -323,10 +266,15 @@ void TestOf_CanTp_ReadParameter(void){
 
 
 void TestOf_CanTp_RxIndication(void){
-    // BufReq_ReturnType (*fakeStartRFunc[])(PduIdType, const PduInfoType, PduLengthType, PduLengthType) = {PduR_CanTpStartOfReception_MOCK};
-    // BufReq_ReturnType (*fakeCopyRData[])(PduIdType, const PduInfoType, PduLengthType) = {PduR_CanTpCopyRxData_MOCK};
-    // SET_CUSTOM_FAKE_SEQ(PduR_CanTpStartOfReception, fakeStartRFunc, 1);
-    // SET_CUSTOM_FAKE_SEQ(PduR_CanTpCopyRxData, fakeCopyRData, 1);
+    RESET_FAKE(PduR_CanTpStartOfReception);
+    RESET_FAKE(PduR_CanTpCopyRxData);
+    RESET_FAKE(PduR_CanTpRxIndication);
+    FFF_RESET_HISTORY();
+
+    BufReq_ReturnType (*fakeStartRFunc[])(PduIdType, const PduInfoType, PduLengthType, PduLengthType) = {PduR_CanTpStartOfReception_MOCK};
+    BufReq_ReturnType (*fakeCopyRData[])(PduIdType, const PduInfoType, PduLengthType) = {PduR_CanTpCopyRxData_MOCK};
+    SET_CUSTOM_FAKE_SEQ(PduR_CanTpStartOfReception, fakeStartRFunc, 1);
+    SET_CUSTOM_FAKE_SEQ(PduR_CanTpCopyRxData, fakeCopyRData, 1);
 
     // TEST 1 - normal addressing
     uint8 pduPayload_1[PDU_PAYLOAD_LEN_1] = { CANTP_N_PCI_TYPE_SF << 4 | 5, 'T', 'E', 'S', 'T', 0,};
@@ -339,7 +287,7 @@ void TestOf_CanTp_RxIndication(void){
     TEST_CHECK(PduR_CanTpStartOfReception_fake.call_count == 1);
     TEST_CHECK(PduR_CanTpStartOfReception_fake.arg0_val == PDU_ID_1);
     TEST_CHECK((PduR_CanTpStartOfReception_fake.arg2_val) == PDU_PAYLOAD_LEN_1 - 1);
-    TEST_CHECK(*(PduLengthType *)(PduR_CanTpStartOfReception_fake.arg3_val) == PDU_PAYLOAD_LEN_1 - 1);
+    TEST_CHECK(*PduR_CanTpStartOfReception_fake.arg3_val == PDU_PAYLOAD_LEN_1 - 1);
 
     TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 1);
     TEST_CHECK(strcmp(testBuffer, "TEST") == 0);
@@ -366,29 +314,23 @@ void TestOf_CanTp_RxIndication(void){
     TEST_CHECK(strcmp(testBuffer, "PSES") == 0);
     TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_val == PDU_ID_2);
 
-    TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 2);
+    TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 3);
     TEST_CHECK(PduR_CanTpRxIndication_fake.arg0_val == PDU_ID_2);
     TEST_CHECK(PduR_CanTpRxIndication_fake.arg1_val == E_OK);
 }
 
 
-// void TestOf_CanTp_TxConfirmation(void){
-
-// }
-
-
 /*
-  Lista testów - wpisz tutaj wszystkie funkcje które mają być wykonane jako testy.
+  Lista testów
 */
 TEST_LIST = {
     {"Test_Of_CanTp_Init",Test_Of_CanTp_Init},    // Format to {"nazwa testu", nazwa_funkcji}
     {"Test_Of_CanTp_Shutdown", Test_Of_CanTp_Shutdown},
+    {"TestOf_CanTp_ChangeParameter", TestOf_CanTp_ChangeParameter},
+    {"TestOf_CanTp_ReadParameter", TestOf_CanTp_ReadParameter},
     {"TestOf_CanTp_Transmit", TestOf_CanTp_Transmit},
     {"TestOf_CanTp_CancelTransmit", TestOf_CanTp_CancelTransmit},
     {"TestOf_CanTp_CancelReceive", TestOf_CanTp_CancelReceive},
-    {"TestOf_CanTp_ChangeParameter", TestOf_CanTp_ChangeParameter},
-    {"TestOf_CanTp_ReadParameter", TestOf_CanTp_ReadParameter},
     {"TestOf_CanTp_RxIndication", TestOf_CanTp_RxIndication},
-    // {"TestOf_CanTp_TxConfirmation", TestOf_CanTp_TxConfirmation},
     {NULL, NULL}  // To musi być na końcu
 };

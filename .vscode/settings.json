@@ -1,7 +1,8 @@
 {
   "C_Cpp_Runner.msvcBatchPath": "",
   "files.associations": {
-    "std_types.h": "c"
+    "std_types.h": "c",
+    "fff.h": "c"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",
